@@ -12,7 +12,7 @@
 Unless you're Rubin Observatory's DM SQuaRE, you shouldn't be using this.
 You should instead be using [the upstream source](https://github.com/chainguard-forks/ingress-nginx).
 
-All we've done to it is to minimally rewrite the README.md and rip out a bunch of the CI that is not useful to us.
+All we've done to it is to minimally rewrite the README.md, rip out a bunch of the CI that is not useful to us, and change the tags.
 
 We are only intending to use this until we are able to migrate away from ingress-nginx to something using the Gateway API.
 
