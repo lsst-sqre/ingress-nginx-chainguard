@@ -215,8 +215,8 @@ dev-env-stop: ## Deletes local Kubernetes cluster created by kind.
 .PHONY: live-docs
 live-docs: ## Build and launch a local copy of the documentation website in http://localhost:8000
 	@docker build ${PLATFORM_FLAG} ${PLATFORM} \
-                  		--no-cache \
-                  		 -t ingress-nginx-docs .github/actions/mkdocs
+	          		--no-cache \
+	          		 -t ingress-nginx-docs .github/actions/mkdocs
 	@docker run ${PLATFORM_FLAG} ${PLATFORM} --rm -it \
 		-p 8000:8000 \
 		-v ${PWD}:/docs \
@@ -246,8 +246,8 @@ show-version:
 	echo -n $(TAG)
 
 BUILDER ?= ingress-nginx
-PLATFORMS ?= amd64 arm arm64
-BUILDX_PLATFORMS ?= linux/amd64,linux/arm,linux/arm64
+PLATFORMS ?= amd64 arm64
+BUILDX_PLATFORMS ?= linux/amd64,linux/arm64
 
 .PHONY: release # Build a multi-arch docker image
 release: builder clean
