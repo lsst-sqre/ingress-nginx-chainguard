@@ -77,6 +77,6 @@ The tags in [TAG](TAG), [images/nginx/TAG](images/nginx/TAG), and [NGINX_BASE](N
 This kicks the can down the road a little farther.
 * First, it was August 13, 2026.
 * There was another update on October 29, 2026.
-* It is now November 18, 2026 and we're back for another round.
+* It is now November 18, 2026 and we're back for a third round.
 
 Let's see how long it takes us to move away from ingress-nginx entirely.
