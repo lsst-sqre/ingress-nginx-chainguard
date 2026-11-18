@@ -32,134 +32,15 @@ In addition to the obvious changes to the nginx base image and what repository i
  * We dropped almost all of the GitHub Actions, keeping only one that rebuilds the NGINX base container and the controller container.  We are not intending to maintain this package as a going concern.
  * We updated the GitHub Actions to their current (June 5, 2026) major versions and let them float within that major version.
  * We dropped 32-bit ARM support, leaving only amd64 and arm64 architectures.  Nothing in the Rubin environment that runs Kubernetes will ever need 32-bit ARM.
- * We added instructions for updating to a new version of NGINX, which is the only maintenance action we ever intend to take.
- * We dropped the patch to nginx that had already been addressed upstream.
- * The `log_escape_non_ascii` patch needed rework to fit an updated source file.
- * Note that the controller name is now `ingress-nginx-controller`, not simply `controller`.  That's because `lsst-sqre` supplies other controllers (such as [Nublado](https://nublado.lsst.io)).  You will need to be aware of this when updating your helm charts.
+ * Updating NGINX is no longer done; we're just using whatever Chainguard uses in their build; fuzzing the patches got too difficult.
 
-## How to update NGINX (instructions for Rubin DM SQuaRE)
-
-We're probably going to have to do this again before we've moved away from ingress-nginx.
-Here's the process for updating the underlying NGINX version.
-
-If you're doing this for some other project, you will need to read on past this section as well.
-
-### Choose your version
-
-Decide on a version.
-Go to https://nginx.org/download and pick the version you want.
-Once you've done that, you should get its sha256sum.
-Do something like the following:
-
-```bash
-NGINX_VERSION=1.30.4
-wget https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz
-sha256sum nginx-$NGINX_VERSION.tar.gz | awk '{print $1}'
-```
-
-### Get your patch set working
-
-#### Set up an environment
-
-You probably want to do this on Linux rather than MacOS, or, God forbid, Windows.
-An EC2 instance is a quick and easy way to get a very basic Linux machine going.
-Note that `quilt` is not available for EC2 Linux; I used a Debian image instead.
-
-#### Set up quilt, sources, and patches
-
-First, acquire quilt; it is very probably in whatever package manager you're using.
-
-Second, grab a fresh copy of NGINX from [https://nginx.org/downloads](https://nginx.org/downloads).
-
-Unpack the vanilla NGINX sources.
-
-Copy the `patches` subdirectory from [images/nginx/rootfs/patches](images/nginx/rootfs/patches) into the top-level NGINX source directory.
-
-#### Try patching, in dry-run mode
-
-Change directory into the top-level NGINX source directory.
-Try applying patches:
-
-```bash
-for p in patches/*; do echo "*** ${p} ***"; patch --dry-run -p1 < ${p}; done
-```
-
-Ignore anything that patches with a fuzz offset; that is fine and we will get to it in the next step.
-What you are concerned with are patches that are rejected.
-
-For each of these, see what went wrong.
-The best case is that it's a patch that has already been incorporated upstream, in which case you can just delete it.
-Otherwise, you're going to have to put in some work to determine why it failed and how to make it work.
-
-A common case is that a later patch depends on an earlier patch; in that case you may need to make a working copy of the repository, and actually apply the patches in sequence to be able to tell what works and what does not.
-
-Eventually, you will either have removed all patches that failed to apply, or gotten them to apply, possibly with fuzz.
-
-Now it's time to rebase the patch set to eliminate the fuzz.
-
-#### Rebase the patch set
-
-Create a series file from the existing patches: `cd patches && quilt import *`.
-
-Now do the rebase:
-
-```bash
-quilt pop -a
-while quilt push; do quilt refresh -p ab; done
-```
-
-This will create (assuming that the patches all applied, which they should have if you did the iterative process above) modified patch files, and backup patch files with `~` extensions.
-
-
-#### Tidy up
-
-Remove all your backup files and the quilt series file: `rm series *~`
-
-Rename the patches so they have the current NGINX version.
-For instance if you are moving from version 1.30.2 to 1.30.4, do:
-```bash
-OLD=1.30.2
-NEW=1.30.4
-for p in $(ls *-${OLD}-*.patch); do n=$(echo $p | sed -e "s/${OLD}/${NEW}/"); mv ${p} ${n}; done
-```
-
-#### Test patch application
-
-Make sure all patches apply cleanly.
-Unpack the vanilla NGINX tarball somewhere new, cd to it, and copy your patch directory over to it.
-Then apply all the patches.
-```bash
-mkdir path-to-test-nginx
-cd path-to-test-nginx
-tar xvpfz path-to-tarball.tgz
-cd nginx-${NEW}
-cp -a path-to-patching-nginx/patches .
-for p in patches/*.patch; do patch -p1 < ${p}; done
-```
-
-This should apply cleanly.  If it does, move on to updating the patches in the ingress-nginx git repository.  If not, work on the patch set until it does.
-
-#### Update patches in ingress-nginx
-
-Make a new branch of this repository (if you're part of DM SQuaRE, presumably `tickets-DM/something` or `t/DM-something`).
-
-Go back to [images/nginx/rootfs](images/nginx/rootfs) and remove the extant patchset: `git rm -rf patches`.
-
-Copy the rebased patches into place and add them to git: `cp -a path-to-nginx-src/patches . && git add patches`.
-
-Commit the changes: `git commit -m "Rebase patch set"`
-
-Now it's time to fix up the rest of the build process.
+* Note that the controller name is now `ingress-nginx-controller`, not simply `controller`.  That's because `lsst-sqre` supplies other controllers (such as [Nublado](https://nublado.lsst.io)).  You will need to be aware of this when updating your helm charts.
 
 ### Update files
 
-Edit [images/nginx/rootfs/build.sh](images/nginx/rootfs/build.sh).
-Change `NGINX_VERSION` on line 21 to the version you selected.
-Then change the checksum for the NGINX package on line 192 (which starts with `get_src`) to the checksum you just extracted.
-
 Increment the version numbers of the containers.
 [TAG](TAG) holds the controller tag, and [images/nginx/TAG](images/nginx/TAG) holds the NGINX base container tag.
-Keep the `-devsquare` label that's appended to the tag.
+Keep the `-lsstsqre-chainguard` label that's appended to the tag.
 
 Change [NGINX_BASE](NGINX_BASE) to pull the base image with the new base container tag.
 
@@ -189,10 +70,13 @@ You have to do all the steps above, but also you're going to need to change `ghc
 
 Then you'll need to change the `REGISTRY` definitions in [images/nginx/Makefile](images/nginx/Makefile) and [Makefile](Makefile).
 
-The tags in [TAG](TAG), [images/nginx/TAG](images/nginx/TAG), and [NGINX_BASE](NGINX_BASE) should also probably get a label that is something other than `-devsquare`; likewise for your [Changelog.md](Changelog.md) entry.
+The tags in [TAG](TAG), [images/nginx/TAG](images/nginx/TAG), and [NGINX_BASE](NGINX_BASE) should also probably get a label that is something other than `-lsstsqre-chainguard`; likewise for your [Changelog.md](Changelog.md) entry.
 
 ## Conclusion
 
 This kicks the can down the road a little farther.
-It's currently August 13, 2026.
+* First, it was August 13, 2026.
+* There was another update on October 29, 2026.
+* It is now November 18, 2026 and we're back for another round.
+
 Let's see how long it takes us to move away from ingress-nginx entirely.
